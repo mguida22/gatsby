@@ -329,6 +329,73 @@ module.exports = (
     return rawHTML
   }
 
+  const generateCaption = async function(
+    node,
+    resolve,
+    inLink,
+    overWrites = {}
+  ) {
+    /*
+     * Example Node..
+        {
+          type: 'image',
+          title: null,
+          url: 'https://i.imgur.com/diZRDu9.jpg',
+          alt: 'agave standing guard',
+          position: Position {
+            start: { line: 106, column: 1, offset: 14513 },
+            end: { line: 106, column: 57, offset: 14569 },
+            indent: []
+          }
+        }
+    */
+
+    // TODO: fill me in! :D
+
+    const imageCaption =
+      options.showCaptions && getImageCaption(node, overWrites)
+
+    if (!imageCaption) {
+      return null
+    }
+
+    console.log(imageCaption)
+
+    let rawHTML = `
+    <img
+      class="${imageClass}"
+      alt="${node.alt}"
+      title="${node.title}"
+      src="${node.url}"
+    />
+    `.trim()
+
+    // Make linking to original image optional
+    if (node.url && !inLink && options.linkImagesToOriginal) {
+      rawHTML = `
+      <a
+        class="gatsby-resp-image-link"
+        href="${node.url}"
+        style="display: block"
+        target="_blank"
+        rel="noopener"
+      >
+        ${rawHTML}
+      </a>
+      `.trim()
+    }
+
+    // TODO: what to do with wrapperStyle?
+    const wrapperStyle = ``
+
+    return `
+  <figure class="gatsby-resp-image-figure" style="${wrapperStyle}">
+    ${rawHTML}
+    <figcaption class="gatsby-resp-image-figcaption">${imageCaption}</figcaption>
+  </figure>
+    `.trim()
+  }
+
   return Promise.all(
     // Simple because there is no nesting in markdown
     markdownImageNodes.map(
@@ -340,7 +407,7 @@ module.exports = (
             !node.hasOwnProperty(`url`) &&
             node.hasOwnProperty(`identifier`)
           ) {
-            //consider as imageReference node
+            // consider as imageReference node
             refNode = node
             node = definitions(refNode.identifier)
             // pass original alt from referencing node
@@ -377,8 +444,27 @@ module.exports = (
             }
             return resolve(node)
           } else {
-            // Image isn't relative so there's nothing for us to do.
-            return resolve()
+            // Image isn't relative, just check for captions.
+            // TODO: implement captions for non-relative images.
+            const rawHTML = await generateCaption(
+              node,
+              resolve,
+              inLink,
+              overWrites
+            )
+
+            if (rawHTML) {
+              // Replace the image or ref node with an inline HTML node.
+              if (refNode) {
+                node = refNode
+              }
+              node.type = `html`
+              node.value = rawHTML
+            }
+
+            console.log(node)
+
+            return resolve(node)
           }
         })
     )
@@ -436,6 +522,10 @@ module.exports = (
                 } else {
                   return resolve()
                 }
+              } else {
+                // Image isn't relative, just check for captions.
+                // TODO: implement captions for non-relative images.
+                return resolve()
               }
             }
 
